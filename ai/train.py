@@ -9,9 +9,19 @@ import torch
 CHECKPOINT_DIR = os.path.join(os.path.dirname(__file__), '..', 'checkpoints')
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
+
+def format_time(seconds):
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    if h > 0: return f'{h}h{m:02d}m'
+    if m > 0: return f'{m}m{s:02d}s'
+    return f'{s}s'
+
+
 def run_selfplay_loop(num_games=100, batch_size=64, save_every=25, turbo=True,
                       lr=3e-4, res_blocks=5, filters=48, dropout=0.0, compile_model=False,
-                      device='cpu', use_mcts=False, mcts_sims=50):
+                      device='cpu', use_mcts=False, mcts_sims=50, eval_every=0):
     print(f'[Train] Device: {device}  Turbo: {turbo}  MCTS: {use_mcts} sims={mcts_sims}')
     print(f'[Train] lr={lr} blocks={res_blocks} filters={filters} dropout={dropout} compile={compile_model}')
 
@@ -24,15 +34,17 @@ def run_selfplay_loop(num_games=100, batch_size=64, save_every=25, turbo=True,
     sp = SelfPlaySystem(network=trainer.network)
     start = time.time()
     losses = []
+    checkpoint_drive_path = os.path.join(os.path.dirname(CHECKPOINT_DIR), '..', 'colab_drive_sync', 'latest.pt')
 
     for game_idx in range(num_games):
-        temp = 1.0 if game_idx < 50 else 0.5
+        temp = 1.0 if game_idx < min(500, num_games // 20) else 0.5
 
         if use_mcts:
             sp.play_game_mcts(temperature=temp, record=True, mcts_sims=mcts_sims)
         else:
             sp.play_game(temperature=temp, record=True)
 
+        # Training steps
         if len(sp.replay_buffer) >= batch_size:
             for _ in range(3 if turbo else 1):
                 batch = random.sample(sp.replay_buffer, batch_size)
@@ -43,21 +55,37 @@ def run_selfplay_loop(num_games=100, batch_size=64, save_every=25, turbo=True,
                 metrics = trainer.train_step(states, actions, rewards, policy_targets=policy_targets)
                 losses.append(metrics['loss'])
 
+        # Save checkpoint
         if (game_idx + 1) % save_every == 0:
             trainer.save(checkpoint_path)
 
+        # Periodic eval
+        if eval_every > 0 and (game_idx + 1) % eval_every == 0:
+            wr = evaluate_vs_baseline(trainer, num_games=min(50, max(10, eval_every // 10)))
+            trainer.save(checkpoint_path)
+
+        # ETA every 50 games (but not every line during fast runs)
         elapsed = time.time() - start
         gps = (game_idx + 1) / max(elapsed, 0.01)
-        avg_loss = sum(losses[-20:]) / max(len(losses[-20:]), 1) if losses else 0
+        avg_loss = sum(losses[-50:]) / max(len(losses[-50:]), 1) if losses else 0
+        remaining = (num_games - game_idx - 1) / max(gps, 0.001)
+        pct = (game_idx + 1) / num_games * 100
+
+        if (game_idx + 1) % max(1, min(50, num_games // 100)) == 0 or game_idx == num_games - 1:
+            print(f'[{game_idx+1:6d}/{num_games}] {pct:5.1f}% L={avg_loss:.3f} '
+                  f'B={len(sp.replay_buffer):5d} {gps:.1f}g/s '
+                  f'ETA={format_time(remaining)} Tot={format_time(elapsed)}')
 
     trainer.save(checkpoint_path)
     elapsed = time.time() - start
     print(f'[Done] {num_games} games in {elapsed:.1f}s ({num_games/elapsed:.1f} games/s)')
     return trainer
 
+
 def evaluate_vs_baseline(trainer, num_games=20):
     sp = SelfPlaySystem(network=trainer.network)
     wins = 0
+    eval_start = time.time()
     for i in range(num_games):
         deck0 = sp.get_random_deck()
         deck1 = sp.get_random_deck()
@@ -74,21 +102,22 @@ def evaluate_vs_baseline(trainer, num_games=20):
                     with torch.no_grad():
                         policy_logits, _ = trainer.network(state_t)
                     policy = torch.exp(policy_logits).squeeze(0).cpu().numpy()
-                    # Sample with temperature 0.5 instead of argmax
                     valid_indices = []
                     for a in valid:
                         ci, x, y = a
-                        if ci < 0: i = 0
-                        else: i = 1 + ci * (18 * 15) + int(x - 0.5) * 15 + int(y // 4)
-                        valid_indices.append(min(i, len(policy)-1))
+                        if ci < 0:
+                            i = 0
+                        else:
+                            i = 1 + ci * (18 * 15) + int(x - 0.5) * 15 + int(y // 4)
+                        valid_indices.append(min(i, len(policy) - 1))
                     probs = [max(policy[i], 1e-10) for i in valid_indices]
                     total = sum(probs)
-                    probs = [p/total for p in probs]
+                    probs = [p / total for p in probs]
                     temp = 0.5
-                    probs = [math.log(p)/temp for p in probs]
+                    probs = [math.log(p) / temp for p in probs]
                     ex = [math.exp(p) for p in probs]
                     s = sum(ex)
-                    probs = [p/s for p in ex]
+                    probs = [p / s for p in ex]
                     idx = random.choices(range(len(valid)), weights=probs)[0]
                     actions[0] = valid[idx]
                 else:
@@ -97,10 +126,11 @@ def evaluate_vs_baseline(trainer, num_games=20):
             game.step_n(150)
         if game.winner == 0:
             wins += 1
-        print(f'[Eval] Game {i}: {"WIN" if game.winner == 0 else "LOSS" if game.winner == 1 else "DRAW"}')
     wr = wins / num_games
-    print(f'[Eval] Win rate vs random: {wr:.2%}')
+    elapsed = time.time() - eval_start
+    print(f'[Eval] {num_games} games, win rate vs random: {wr:.2%} ({elapsed:.1f}s {num_games/elapsed:.1f}g/s)')
     return wr
+
 
 if __name__ == '__main__':
     import sys
