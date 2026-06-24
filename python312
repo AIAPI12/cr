@@ -1,0 +1,6 @@
+#!/bin/bash
+PY12_DIR="$HOME/Library/Frameworks/Python.framework/Versions/3.12"
+DYLD_FALLBACK_LIBRARY_PATH="$PY12_DIR/lib" \
+DYLD_FALLBACK_FRAMEWORK_PATH="$HOME/Library/Frameworks" \
+DEVELOPER_DIR="/Library/Developer/CommandLineTools" \
+"$PY12_DIR/bin/python3.12" "$@"
