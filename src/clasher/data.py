@@ -49,11 +49,13 @@ def _find_gamedata() -> str:
     global _DEFAULT_DATA_FILE
     if _DEFAULT_DATA_FILE:
         return _DEFAULT_DATA_FILE
+    _dir = os.path.dirname(os.path.abspath(__file__))
+    proj = os.path.abspath(os.path.join(_dir, '..', '..'))
     candidates = [
+        os.path.join(_dir, "gamedata.json"),
         "gamedata.json",
+        os.path.join(proj, "gamedata.json"),
     ]
-    proj = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-    candidates.append(os.path.join(proj, "gamedata.json"))
     for c in candidates:
         if os.path.exists(c):
             _DEFAULT_DATA_FILE = c

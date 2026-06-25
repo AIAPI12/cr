@@ -4,4 +4,3 @@ checkpoints/*.pt
 ai/cache/
 .DS_Store
 *.egg-info/
-gamedata.json
