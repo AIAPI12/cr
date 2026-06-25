@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from ..mechanic_base import BaseMechanic
 
@@ -14,7 +14,7 @@ class DamageRamp(BaseMechanic):
     per_target: bool = True  # Retained for API compatibility
     target_timers: dict = field(default_factory=dict)  # legacy field
     stored_original_damage: int = 0
-    _current_target_id: int | None = field(init=False, default=None)
+    _current_target_id: Optional[int] = field(init=False, default=None)
     _current_target_ms: int = field(init=False, default=0)
 
     def on_attach(self, entity) -> None:

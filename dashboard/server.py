@@ -136,7 +136,11 @@ class DashboardState:
     def add_live(self, msg: str, level: str = "info"):
         entry = {"msg": msg, "level": level, "time": time.time()}
         self.live_feed.append(entry)
-        asyncio.create_task(self.broadcast("live", entry))
+        try:
+            asyncio.get_running_loop()
+            asyncio.create_task(self.broadcast("live", entry))
+        except RuntimeError:
+            pass
 
 
 state = DashboardState()
@@ -147,16 +151,22 @@ def _game_to_state(game) -> dict:
         return {}
     b = game.battle
     ents = []
+    tower_ids = set()
+    for pid in range(2):
+        p = b.players[pid]
+        for t in (p.king_tower, p.left_tower, p.right_tower):
+            if t:
+                tower_ids.add(id(t))
     for e in b.entities.values():
         if not e.is_alive:
             continue
         cs = getattr(e, 'card_stats', None)
         name = getattr(cs, 'name', '') if cs else ''
         is_b = 'Building' in type(e).__name__
-        is_tower = is_b and any(k in name for k in ['Tower', 'King', 'Princess', 'Cannon', 'Duchess'])
+        is_tower = id(e) in tower_ids
         r = getattr(e, 'collision_radius', 0.5) or 0.5
         ents.append({
-            'id': e.player_id * 1000 + id(e) % 1000,
+            'id': id(e) % 65536,
             'x': e.position.x, 'y': e.position.y,
             'player_id': e.player_id,
             'name': name,
@@ -203,27 +213,28 @@ def _ai_action(game, pid):
     valid = game.get_valid_actions(pid)
     if not valid:
         return (-1, 0, 0)
-    if state._trainer:
-        import torch
-        import torch.nn.functional as F
-        import math
-        st = game.get_state_tensor(pid)
-        st_t = torch.FloatTensor(st).unsqueeze(0)
-        with torch.no_grad():
-            logits, _ = state._trainer.network(st_t)
-        pol = torch.exp(logits).squeeze(0).cpu().numpy()
-        idxs = []
-        for a in valid:
-            ci, x, y = a
-            if ci < 0:
-                i = 0
-            else:
-                i = 1 + ci * (18 * 15) + int(x - 0.5) * 15 + int(y // 4)
-            idxs.append(min(i, len(pol) - 1))
-        probs = [max(pol[i], 1e-10) for i in idxs]
-        total = sum(probs)
-        probs = [p / total for p in probs]
-        return random.choices(valid, weights=probs)[0]
+    if state._trainer and state._trainer.network is not None:
+        try:
+            import torch
+            st = game.get_state_tensor(pid)
+            st_t = torch.FloatTensor(st).unsqueeze(0)
+            with torch.no_grad():
+                logits, _ = state._trainer.network(st_t)
+            pol = torch.exp(logits).squeeze(0).cpu().numpy()
+            idxs = []
+            for a in valid:
+                ci, x, y = a
+                if ci < 0:
+                    i = 0
+                else:
+                    i = 1 + ci * (18 * 15) + int(x - 0.5) * 15 + int(y // 4)
+                idxs.append(min(i, len(pol) - 1))
+            probs = [max(pol[i], 1e-10) for i in idxs]
+            total = sum(probs)
+            probs = [p / total for p in probs]
+            return random.choices(valid, weights=probs)[0]
+        except Exception:
+            pass
     return random.choice(valid)
 
 
@@ -342,7 +353,7 @@ async def receive_game(g: GameResult):
     return {"ok": True}
 
 
-@app.post("/api/live")
+@app.get("/api/live")
 async def receive_live(msg: str, level: str = "info"):
     state.add_live(msg, level)
     return {"ok": True}

@@ -339,9 +339,7 @@ function handleGameState(state){
   // Towers
   if(state.towers){
     for(const t of state.towers){
-      const id=t.player_id+'-'+t.type;
-      const el=document.getElementById(id+'-'+t.player_id)||
-        document.getElementById(t.type+'-p'+t.player_id);
+      const el=document.getElementById(t.type+'-p'+t.player_id);
       if(el)el.style.width=(t.hp_ratio*100)+'%';
     }
   }

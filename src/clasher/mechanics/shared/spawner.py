@@ -4,7 +4,6 @@ import math
 import random
 
 from ..mechanic_base import BaseMechanic
-from ...factory.dynamic_factory import troop_from_values
 
 if TYPE_CHECKING:
     from ...battle import BattleState
@@ -48,6 +47,7 @@ class PeriodicSpawner(BaseMechanic):
 
         # If not found, create minimal stats
         if not spawn_stats:
+            from ...factory.dynamic_factory import troop_from_values
             spawn_stats = troop_from_values(
                 self.unit_name,
                 hitpoints=100,

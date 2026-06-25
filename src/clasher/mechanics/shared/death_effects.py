@@ -1,10 +1,9 @@
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import math
 import random
 
 from ..mechanic_base import BaseMechanic
-from ...factory.dynamic_factory import troop_from_values
 
 if TYPE_CHECKING:
     from ...battle import BattleState
@@ -44,7 +43,7 @@ class DeathSpawn(BaseMechanic):
     unit_name: str
     count: int
     radius_tiles: float = 0.5
-    unit_data: dict | None = None
+    unit_data: Optional[dict] = None
 
     def on_death(self, entity) -> None:
         """Spawn units around death position"""
@@ -57,7 +56,7 @@ class DeathSpawn(BaseMechanic):
 
         from ...arena import Position
         from ...entities import TimedExplosive
-        from ...factory.dynamic_factory import troop_from_character_data
+        from ...factory.dynamic_factory import troop_from_character_data, troop_from_values
 
         # Bomb-style death spawns (e.g., BalloonBomb, BombTowerBomb) become timed explosives.
         if self.unit_data and self.unit_data.get("deathDamage") is not None and not self.unit_data.get("hitpoints"):
