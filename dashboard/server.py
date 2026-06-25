@@ -3,6 +3,8 @@ from typing import Dict, List, Any, Optional
 from collections import deque
 from contextlib import asynccontextmanager
 
+ACTION_DIM = 1 + 4 * 18 * 15
+
 _PROJ = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if _PROJ not in sys.path:
     sys.path.insert(0, _PROJ)
@@ -12,6 +14,7 @@ if _SRC not in sys.path:
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
@@ -25,14 +28,15 @@ class TrainingMetrics(BaseModel):
     game: int
     total_games: int
     loss: float
-    policy_loss: float
-    value_loss: float
-    entropy: float
-    approx_kl: float
-    gps: float
-    pct: float
-    eta_seconds: float
-    elapsed_seconds: float
+    policy_loss: float = 0
+    value_loss: float = 0
+    entropy: float = 0
+    approx_kl: float = 0
+    gps: float = 0
+    pct: float = 0
+    eta_seconds: float = 0
+    elapsed_seconds: float = 0
+    win_rate: float = 0
     timestamp: float = Field(default_factory=time.time)
 
 
@@ -59,7 +63,7 @@ class DashboardState:
         self.games: List[GameResult] = []
         self.current_game: Optional[GameResult] = None
         self.session_start: float = time.time()
-        self.total_games_target: int = 100000
+        self.total_games_target: int = 167000
         self.step_n: int = 150
         self.config: Dict[str, Any] = {}
         self.system_info: SystemInfo = SystemInfo(cpu_percent=0, memory_percent=0)
@@ -100,7 +104,7 @@ class DashboardState:
                 self.metrics = [TrainingMetrics(**m) for m in data.get('metrics', [])]
                 self.games = [GameResult(**g) for g in data.get('games', [])]
                 self.session_start = data.get('session_start', time.time())
-                self.total_games_target = data.get('total_games_target', 100000)
+                self.total_games_target = data.get('total_games_target', 167000)
                 self.step_n = data.get('step_n', 150)
                 self.config = data.get('config', {})
                 self.elo_ratings = data.get('elo_ratings', {})
@@ -228,7 +232,7 @@ def _ai_action(game, pid):
                     i = 0
                 else:
                     i = 1 + ci * (18 * 15) + int(x - 0.5) * 15 + int(y // 4)
-                idxs.append(min(i, len(pol) - 1))
+                idxs.append(min(i, ACTION_DIM - 1))
             probs = [max(pol[i], 1e-10) for i in idxs]
             total = sum(probs)
             probs = [p / total for p in probs]
@@ -249,7 +253,7 @@ async def _run_game_loop():
         for _ in range(state.speed):
             if state.game.game_over:
                 w = state.game.winner
-                state.add_live(f"Game {state.game_count} over - winner: {'Draw' if w is None else f'P{w}'}", "info")
+                state.add_live(f"Game {state.game_count} over - {'Draw' if w is None else f'P{w} wins'}", "info")
                 await state.broadcast("game_state", _game_to_state(state.game))
                 await state.broadcast("metrics", {
                     'gps': 0, 'loss': 0, 'win_rate': 0,
@@ -258,7 +262,7 @@ async def _run_game_loop():
                 break
             actions = {0: _ai_action(state.game, 0), 1: _ai_action(state.game, 1)}
             state.game.step(actions)
-            state.game.step_n(30)
+            state.game.step_n(state.step_n)
 
         await state.broadcast("game_state", _game_to_state(state.game))
         await asyncio.sleep(0.033)
@@ -275,6 +279,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Clash Royale AI Dashboard", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+dashboard_dir = os.path.join(_PROJ, 'dashboard')
+static_dir = os.path.join(dashboard_dir, 'static')
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 class ConnectionManager:
@@ -315,7 +324,7 @@ async def websocket_endpoint(ws: WebSocket):
 
 @app.get("/")
 async def root():
-    return FileResponse("dashboard/index.html")
+    return FileResponse(os.path.join(dashboard_dir, "index.html"))
 
 
 @app.get("/api/state")
@@ -382,7 +391,8 @@ async def stop_game():
 @app.post("/api/speed")
 async def set_speed(data: Dict[str, int]):
     state.speed = max(1, data.get("speed", 1))
-    return {"ok": True, "speed": state.speed}
+    state.step_n = data.get("step_n", state.step_n)
+    return {"ok": True, "speed": state.speed, "step_n": state.step_n}
 
 
 @app.get("/health")

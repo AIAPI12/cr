@@ -23,10 +23,25 @@ from clasher.battle import BattleState, pick_tower_troops, TOWER_TROOP_STATS
 from clasher.arena import Position
 from clasher.spells import SPELL_REGISTRY
 
-FEATURE_CHANNELS = 20
+FEATURE_CHANNELS = 22
 NUM_X = 18
 NUM_Y_TROOP = 15
 ACTION_DIM = 1 + 4 * NUM_X * NUM_Y_TROOP
+
+EVOLVED_CARDS = {
+    'Archers','BabyDragon','Barbarians','BattleRam','Bats','Bomber','Cannon',
+    'DartGoblin','ElectroDragon','Executioner','Firecracker','Furnace',
+    'GiantSnowball','GoblinBarrel','GoblinCage','GoblinDrill','GoblinGiant',
+    'Hunter','IceSpirit','InfernoDragon','Knight','Lumberjack','MegaKnight',
+    'MinionHorde','Mortar','Musketeer','Pekka','Princess','RoyalGhost',
+    'RoyalGiant','RoyalHogs','RoyalRecruits','SkeletonArmy','SkeletonBarrel',
+    'Skeletons','Tesla','Valkyrie','WallBreakers','Witch','Wizard','Zap',
+}
+
+CHAMPION_CARDS = {
+    'ArcherQueen','SkeletonKing','GoldenKnight','MightyMiner','Monk',
+    'LittlePrince','BossBandit','Goblinstein',
+}
 
 BLOCKED_TILES = set([
     (0,14),(0,17),(17,14),(17,17),
@@ -119,6 +134,27 @@ class CRGame:
             for x in range(w):
                 t[11][y][x] = tr
 
+        for i, name in enumerate(p.hand[:4]):
+            evo_val = 1.0 if name in EVOLVED_CARDS else 0.0
+            for y in range(h):
+                for x in range(w):
+                    t[12+i][y][x] = evo_val
+
+        for i, name in enumerate(p.hand[:4]):
+            champ_val = 1.0 if name in CHAMPION_CARDS else 0.0
+            for y in range(h):
+                for x in range(w):
+                    t[16+i][y][x] = champ_val
+
+        for y in range(h):
+            for x in range(w):
+                t[20][y][x] = len(b.entities) / 20.0
+
+        for y in range(h):
+            for x in range(w):
+                t[21][y][x] = (sum(c in EVOLVED_CARDS for c in p.hand) +
+                              sum(c in CHAMPION_CARDS for c in p.hand)) / 4.0
+
         if pid == 1:
             for c in range(c):
                 t[c] = list(reversed(t[c]))
@@ -184,16 +220,22 @@ class SelfPlaySystem:
         self._pos_cache_pid = None
 
     def _decks(self):
-        return [
-            ['Knight','Archer','Musketeer','Fireball','Giant','Minions','Barbarians','Arrows'],
-            ['HogRider','Musketeer','Fireball','Cannon','Skeletons','IceSpirits','Log','Knight'],
-            ['Pekka','Bandit','BattleRam','EliteArcher','Poison','Zap','Minions','ElectroWizard'],
-            ['Golem','BabyDragon','DarkWitch','RageBarbarian','Tornado','Lightning','MegaMinion','Barbarians'],
-            ['Knight','GoblinBarrel','Princess','Log','Rocket','IceSpirits','Tornado','Tesla'],
-            ['Xbow','Knight','Archer','Fireball','Log','IceSpirits','Skeletons','Tesla'],
-            ['RoyalGiant','FirespiritHut','Lightning','Log','Barbarians','MegaMinion','Minions','Zap'],
-            ['Miner','Poison','Knight','Minions','Skeletons','IceSpirits','Log','Archer'],
-        ]
+        # Use dynamic deck generator if available, otherwise fallback to hardcoded meta decks
+        try:
+            from .deck_generator import generate_deck_pool
+            return generate_deck_pool(32)
+        except Exception:
+            # Fallback meta decks
+            return [
+                ['Golem', 'BabyDragon', 'DarkWitch', 'ElectroWizard', 'MegaMinion', 'Tornado', 'Lightning', 'Barbarians'],
+                ['Giant', 'Musketeer', 'MiniPekka', 'Fireball', 'Zap', 'Knight', 'Archer', 'Minions'],
+                ['Pekka', 'BattleRam', 'Bandit', 'ElectroWizard', 'Poison', 'Zap', 'Minions', 'DarkPrince'],
+                ['HogRider', 'Fireball', 'Log', 'Cannon', 'MiniPekka', 'Skeletons', 'Archer', 'IceSpirits'],
+                ['Miner', 'Poison', 'IceSpirits', 'Log', 'Skeletons', 'Archer', 'Knight', 'MegaMinion'],
+                ['Xbow', 'Archer', 'Fireball', 'Log', 'Skeletons', 'IceSpirits', 'Knight', 'Tesla'],
+                ['GoblinBarrel', 'Princess', 'DarkPrince', 'IceSpirits', 'Log', 'Knight', 'Rocket', 'Skeletons'],
+                ['RoyalGiant', 'FirespiritHut', 'Lightning', 'Zap', 'Knight', 'MegaMinion', 'Minions', 'Archer'],
+            ]
 
     def get_random_deck(self):
         return random.choice(self.deck_pool)
@@ -217,7 +259,7 @@ class SelfPlaySystem:
                 ci, x, y = a
                 if ci < 0: i = 0
                 else: i = 1 + ci * (NUM_X * NUM_Y_TROOP) + int(x - 0.5) * NUM_Y_TROOP + int(y // 4)
-                vidx.append(min(i, len(probs[pi]) - 1))
+                vidx.append(min(i, probs.shape[1] - 1))
             vp = [max(probs[pi][i], 1e-10) for i in vidx]
             total = sum(vp)
             vp = [p/total for p in vp]

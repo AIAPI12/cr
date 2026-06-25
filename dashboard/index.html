@@ -5,119 +5,135 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Clash Royale AI</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#0a0a14;color:#ddd;font-family:'Segoe UI',sans-serif;overflow:hidden;height:100vh}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',system-ui,sans-serif}
+body{background:#0a0a14;color:#ddd;overflow:hidden;height:100vh}
 #app{display:flex;height:100vh}
-#arena-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;position:relative}
+#left-col{flex:1;display:flex;flex-direction:column;min-width:0}
+#arena-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:10px;position:relative}
 #arena{background:#1a4a1a;border-radius:12px;border:2px solid #333;position:relative;overflow:hidden}
 #arena canvas{display:block;width:720px;height:640px}
 #top-bar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:8px 20px;z-index:10;pointer-events:none}
 .crowns{font-size:28px;font-weight:bold;text-shadow:0 0 10px rgba(0,0,0,.8)}
-.blue-crown{color:#4499ff}
-.red-crown{color:#ff5555}
+.blue-crown{color:#4499ff}.red-crown{color:#ff5555}
 .timer{font-size:24px;color:#fff;text-shadow:0 0 10px rgba(0,0,0,.8)}
-#sidebar{width:340px;background:#14141f;border-left:1px solid #2a2a40;padding:16px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
-.panel{background:#1a1a2e;border:1px solid #2a2a40;border-radius:8px;padding:12px}
-.panel h3{color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
-.stat-row{display:flex;justify-content:space-between;padding:3px 0;font-size:13px}
-.stat-row .label{color:#888}
-.stat-row .value{color:#fff;font-weight:600}
-.elixir-bar{height:14px;border-radius:7px;background:#1a0a30;overflow:hidden;margin:4px 0;position:relative}
-.elixir-fill{height:100%;border-radius:7px;transition:width .3s;background:linear-gradient(90deg,#b84dff,#d48aff)}
+#status-bar{display:flex;justify-content:space-between;padding:4px 16px;font-size:12px;color:#666;background:#0d0d18}
+#sidebar{width:380px;background:#12121e;border-left:1px solid #2a2a40;display:flex;flex-direction:column;overflow:hidden}
+.panel{background:#1a1a2e;border:1px solid #2a2a40;border-radius:8px;padding:12px;margin:4px 8px}
+.panel h3{color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.stat-row{display:flex;justify-content:space-between;padding:2px 0;font-size:12px}
+.stat-row .label{color:#888}.stat-row .value{color:#fff;font-weight:600}
+.elixir-bar{height:12px;border-radius:6px;background:#1a0a30;overflow:hidden;margin:3px 0}
+.elixir-fill{height:100%;border-radius:6px;transition:width .3s}
 .elixir-fill.p0{background:linear-gradient(90deg,#4488ff,#77bbff)}
 .elixir-fill.p1{background:linear-gradient(90deg,#ff5555,#ff8888)}
-.hand{display:flex;gap:4px;margin-top:4px}
-.hand-card{width:50px;height:60px;background:#2a2a40;border-radius:6px;border:1px solid #444;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;color:#aaa;position:relative}
-.hand-card .cost{position:absolute;top:2px;left:2px;background:#6a20aa;color:#fff;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:bold}
-.hand-card .name{font-size:8px;text-align:center;word-wrap:break-word;max-width:46px}
-.live-feed{max-height:120px;overflow-y:auto;font-size:11px;color:#666}
+.hand{display:flex;gap:4px;margin:4px 0;flex-wrap:wrap}
+.hand-card{width:52px;height:62px;background:#222;border-radius:6px;border:2px solid #444;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;position:relative;overflow:hidden;cursor:pointer}
+.hand-card img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover}
+.hand-card .cost{position:absolute;top:2px;left:2px;background:#6a20aa;color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold;z-index:2}
+.hand-card .name{position:relative;z-index:2;font-size:7px;text-align:center;color:#ddd;background:rgba(0,0,0,.6);width:100%;padding:1px 0}
+.hand-card.disabled{opacity:.5;filter:saturate(.3)}
+.hand-card.disabled img{filter:grayscale(1)}
+.live-feed{max-height:100px;overflow-y:auto;font-size:11px;color:#666}
 .live-feed div{padding:2px 0;border-bottom:1px solid #1a1a2e}
-.live-feed .info{color:#888}
-.live-feed .warn{color:#ffaa00}
-.live-feed .error{color:#ff4444}
-.btn{background:#2a2a50;border:1px solid #4444aa;color:#ccc;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px}
-.btn:hover{background:#3a3a70}
-.btn:disabled{opacity:.5;cursor:default}
-.controls{display:flex;gap:8px;flex-wrap:wrap}
-.speed-btn{background:#222;border:1px solid #444;color:#aaa;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px}
+.live-feed .info{color:#888}.live-feed .warn{color:#ffaa00}.live-feed .error{color:#ff4444}
+.btn{background:#2a2a50;border:1px solid #4444aa;color:#ccc;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px}
+.btn:hover{background:#3a3a70}.btn:disabled{opacity:.5;cursor:default}
+.controls{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.speed-btn{background:#222;border:1px solid #444;color:#aaa;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:11px}
 .speed-btn.active{background:#2a4a2a;border-color:#4a8;color:#4a8}
-#status-bar{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;color:#666}
-.chart-wrap{height:80px;position:relative}
-.chart-wrap canvas{width:100%;height:100%;border-radius:4px}
-.hp-bar{height:6px;border-radius:3px;background:#333;overflow:hidden;margin:2px 0}
+.hp-bar{height:5px;border-radius:3px;background:#333;overflow:hidden;margin:1px 0}
 .hp-fill{height:100%;border-radius:3px;transition:width .3s}
-.hp-fill.green{background:#5c5}
-.hp-fill.yellow{background:#cc5}
-.hp-fill.red{background:#c55}
-.tower-hps{display:flex;gap:8px;font-size:11px}
+.hp-fill.green{background:#5c5}.hp-fill.yellow{background:#cc5}.hp-fill.red{background:#c55}
+.tower-hps{display:flex;gap:6px;font-size:10px}
 .tower-hps>div{flex:1}
-.tower-hps .label{color:#888;font-size:9px}
+.tower-hps .label{color:#888;font-size:8px}
+.chart-wrap{height:100px;position:relative;margin:4px 0}
+.chart-wrap canvas{width:100%;height:100%;border-radius:4px;background:#111}
+#scrolly{overflow-y:auto;flex:1}
+.tab-bar{display:flex;gap:0;margin-bottom:6px;background:#111;border-radius:6px;overflow:hidden}
+.tab{flex:1;padding:6px;text-align:center;font-size:11px;cursor:pointer;color:#666;border:none;background:transparent}
+.tab.active{color:#fff;background:#2a2a50}
+.tab-content{display:none}
+.tab-content.active{display:block}
 </style>
 </head>
 <body>
 <div id="app">
-  <div id="arena-wrap">
-    <div id="arena">
-      <canvas id="game-canvas" width="720" height="640"></canvas>
-      <div id="top-bar">
-        <div class="crowns blue-crown" id="crowns-p0">0/3</div>
-        <div class="timer" id="game-timer">0:00</div>
-        <div class="crowns red-crown" id="crowns-p1">0/3</div>
+  <div id="left-col">
+    <div id="arena-wrap">
+      <div id="arena">
+        <canvas id="game-canvas" width="720" height="640"></canvas>
+        <div id="top-bar">
+          <div class="crowns blue-crown" id="crowns-p0">0/3</div>
+          <div class="timer" id="game-timer">0:00</div>
+          <div class="crowns red-crown" id="crowns-p1">0/3</div>
+        </div>
       </div>
-    </div>
-    <div id="status-bar">
-      <span id="status-msg">Connecting...</span>
-      <span id="status-games">Games: 0</span>
+      <div id="status-bar">
+        <span id="status-msg">Connecting...</span>
+        <span id="status-gps">0 g/s</span>
+        <span id="status-games">Games: 0</span>
+      </div>
     </div>
   </div>
   <div id="sidebar">
-    <div class="panel">
-      <h3>Controls</h3>
-      <div class="controls">
-        <button class="btn" id="btn-play">Play Game</button>
-        <button class="btn" id="btn-stop" disabled>Stop</button>
+    <div id="scrolly">
+      <div class="panel">
+        <div class="tab-bar">
+          <button class="tab active" data-tab="game">Game</button>
+          <button class="tab" data-tab="training">Training</button>
+        </div>
+        <div class="tab-content active" id="tab-game">
+          <div class="controls">
+            <button class="btn" id="btn-play">Play</button>
+            <button class="btn" id="btn-stop" disabled>Stop</button>
+          </div>
+          <div style="margin-top:6px;display:flex;gap:4px">
+            <button class="speed-btn active" data-speed="1">1x</button>
+            <button class="speed-btn" data-speed="2">2x</button>
+            <button class="speed-btn" data-speed="4">4x</button>
+            <button class="speed-btn" data-speed="8">8x</button>
+          </div>
+        </div>
+        <div class="tab-content" id="tab-training">
+          <div class="stat-row"><span class="label">Games Played</span><span class="value" id="tr-games">0</span></div>
+          <div class="stat-row"><span class="label">Games/Sec</span><span class="value" id="tr-gps">0</span></div>
+          <div class="stat-row"><span class="label">Win Rate</span><span class="value" id="tr-wr">-</span></div>
+          <div class="stat-row"><span class="label">Loss</span><span class="value" id="tr-loss">-</span></div>
+          <div class="stat-row"><span class="label">Entropy</span><span class="value" id="tr-entropy">-</span></div>
+          <div class="stat-row"><span class="label">Policy Loss</span><span class="value" id="tr-ploss">-</span></div>
+          <div class="stat-row"><span class="label">Value Loss</span><span class="value" id="tr-vloss">-</span></div>
+          <div class="stat-row"><span class="label">ETA</span><span class="value" id="tr-eta">-</span></div>
+          <div class="chart-wrap"><canvas id="loss-chart"></canvas></div>
+        </div>
       </div>
-      <div style="margin-top:8px;display:flex;gap:6px">
-        <button class="speed-btn active" data-speed="1">1x</button>
-        <button class="speed-btn" data-speed="2">2x</button>
-        <button class="speed-btn" data-speed="4">4x</button>
-        <button class="speed-btn" data-speed="8">8x</button>
+
+      <div class="panel">
+        <h3>Player 0 (Blue)</h3>
+        <div class="elixir-bar"><div class="elixir-fill p0" id="elixir-p0" style="width:50%"></div></div>
+        <div class="hand" id="hand-p0"></div>
+        <div class="tower-hps">
+          <div><span class="label">King</span><div class="hp-bar"><div class="hp-fill green" id="king-p0" style="width:100%"></div></div></div>
+          <div><span class="label">Left</span><div class="hp-bar"><div class="hp-fill green" id="left-p0" style="width:100%"></div></div></div>
+          <div><span class="label">Right</span><div class="hp-bar"><div class="hp-fill green" id="right-p0" style="width:100%"></div></div></div>
+        </div>
       </div>
-    </div>
 
-    <div class="panel">
-      <h3>Player 0 (Blue)</h3>
-      <div class="elixir-bar"><div class="elixir-fill p0" id="elixir-p0" style="width:50%"></div></div>
-      <div class="hand" id="hand-p0"></div>
-      <div class="tower-hps">
-        <div><span class="label">King</span><div class="hp-bar"><div class="hp-fill green" id="king-p0" style="width:100%"></div></div></div>
-        <div><span class="label">Left</span><div class="hp-bar"><div class="hp-fill green" id="left-p0" style="width:100%"></div></div></div>
-        <div><span class="label">Right</span><div class="hp-bar"><div class="hp-fill green" id="right-p0" style="width:100%"></div></div></div>
+      <div class="panel">
+        <h3>Player 1 (Red)</h3>
+        <div class="elixir-bar"><div class="elixir-fill p1" id="elixir-p1" style="width:50%"></div></div>
+        <div class="hand" id="hand-p1"></div>
+        <div class="tower-hps">
+          <div><span class="label">King</span><div class="hp-bar"><div class="hp-fill green" id="king-p1" style="width:100%"></div></div></div>
+          <div><span class="label">Left</span><div class="hp-bar"><div class="hp-fill green" id="left-p1" style="width:100%"></div></div></div>
+          <div><span class="label">Right</span><div class="hp-bar"><div class="hp-fill green" id="right-p1" style="width:100%"></div></div></div>
+        </div>
       </div>
-    </div>
 
-    <div class="panel">
-      <h3>Player 1 (Red)</h3>
-      <div class="elixir-bar"><div class="elixir-fill p1" id="elixir-p1" style="width:50%"></div></div>
-      <div class="hand" id="hand-p1"></div>
-      <div class="tower-hps">
-        <div><span class="label">King</span><div class="hp-bar"><div class="hp-fill green" id="king-p1" style="width:100%"></div></div></div>
-        <div><span class="label">Left</span><div class="hp-bar"><div class="hp-fill green" id="left-p1" style="width:100%"></div></div></div>
-        <div><span class="label">Right</span><div class="hp-bar"><div class="hp-fill green" id="right-p1" style="width:100%"></div></div></div>
+      <div class="panel">
+        <h3>Live Feed</h3>
+        <div class="live-feed" id="live-feed"></div>
       </div>
-    </div>
-
-    <div class="panel">
-      <h3>Stats</h3>
-      <div class="stat-row"><span class="label">Win Rate</span><span class="value" id="stat-wr">-</span></div>
-      <div class="stat-row"><span class="label">Games/Sec</span><span class="value" id="stat-gps">-</span></div>
-      <div class="stat-row"><span class="label">Buffer</span><span class="value" id="stat-buffer">-</span></div>
-      <div class="stat-row"><span class="label">Loss</span><span class="value" id="stat-loss">-</span></div>
-    </div>
-
-    <div class="panel" style="flex:1">
-      <h3>Live Feed</h3>
-      <div class="live-feed" id="live-feed"></div>
     </div>
   </div>
 </div>
@@ -125,15 +141,6 @@ body{background:#0a0a14;color:#ddd;font-family:'Segoe UI',sans-serif;overflow:hi
 const canvas=document.getElementById('game-canvas');
 const ctx=canvas.getContext('2d');
 const W=720,H=640,AX=0,AY=0,TILE=20;
-
-let ws=null;
-let gameState=null;
-let speed=1;
-let playing=false;
-let animId=null;
-let lastFrame=0;
-let gameTime=0;
-
 const TOWER_POSITIONS=[
   {x:9,y:1.5,owner:0,type:'king'},
   {x:9,y:30.5,owner:1,type:'king'},
@@ -143,9 +150,26 @@ const TOWER_POSITIONS=[
   {x:14.5,y:26.5,owner:1,type:'princess'},
 ];
 
-// Card definitions for rendering
-const RARITY_COLORS={Common:'#aaa',Rare:'#ffd750',Epic:'#a03cff',Legendary:'#ffb432',Champion:'#ff3cb4'};
-const CARD_NAMES={Knight:'Knight',Archer:'Archer',Musketeer:'Musk',Fireball:'Fireball',Giant:'Giant',Minions:'Minions',Barbarians:'Barbs',Arrows:'Arrows',HogRider:'Hog',Cannon:'Cannon',Skeletons:'Skels',IceSpirits:'IceS',Log:'Log',Pekka:'Pekka',Bandit:'Bandit',BattleRam:'Ram',EliteArcher:'EArc',Poison:'Poison',Zap:'Zap',ElectroWizard:'EWiz',Golem:'Golem',BabyDragon:'BDrag',DarkWitch:'DWitch',Tornado:'Tornado',Lightning:'Light',MegaMinion:'MMin',GoblinBarrel:'GBar',Princess:'Princess',Rocket:'Rocket',Tesla:'Tesla',Xbow:'Xbow',IceGolem:'IGol'};
+let ws=null;let gameState=null;let speed=1;let playing=false;
+let animId=null;let lastFrame=0;let gameTime=0;
+let cardImages={};let cardMap=null;
+let metricsHistory=[];
+let lossChart=null;
+
+fetch('/static/cards/card_map.json').then(r=>r.json()).then(m=>{
+  cardMap=m;
+  const base='/static/assets/cards-150/';
+  for(const[_,fn]of Object.entries(m)){
+    const img=new Image();
+    img.src=base+fn;
+    cardImages[fn]=img;
+  }
+});
+
+function getCardImage(name){
+  const fn=cardMap?.[name];
+  return fn?cardImages[fn]:null;
+}
 
 function wsConnect(){
   const protocol=location.protocol==='https:'?'wss:':'ws:';
@@ -171,92 +195,70 @@ function addLive(data){
   d.className=data.level||'info';
   d.textContent=data.msg;
   feed.appendChild(d);
-  if(feed.children>50)feed.removeChild(feed.firstChild);
+  if(feed.children>30)feed.removeChild(feed.firstChild);
   feed.scrollTop=feed.scrollHeight;
 }
-
 function handleInit(data){
-  if(data.metrics&&data.metrics.length)handleMetrics(data.metrics[data.metrics.length-1]);
+  if(data.metrics&&data.metrics.length){
+    const m=data.metrics[data.metrics.length-1];
+    handleMetrics(m);
+    metricsHistory=data.metrics;
+    updateChart();
+  }
 }
-
 function handleMetrics(m){
-  if(m.win_rate!=null)document.getElementById('stat-wr').textContent=(m.win_rate*100).toFixed(1)+'%';
-  if(m.gps!=null)document.getElementById('stat-gps').textContent=m.gps.toFixed(1);
-  if(m.buffer!=null)document.getElementById('stat-buffer').textContent=m.buffer;
-  if(m.loss!=null)document.getElementById('stat-loss').textContent=m.loss.toFixed(4);
+  if(m.gps!=null)document.getElementById('status-gps').textContent=m.gps.toFixed(1)+' g/s';
+  if(m.game!=null)document.getElementById('status-games').textContent='Games: '+m.game;
+  if(m.win_rate!=null)document.getElementById('tr-wr').textContent=(m.win_rate*100).toFixed(1)+'%';
+  if(m.gps!=null)document.getElementById('tr-gps').textContent=m.gps.toFixed(1);
+  if(m.loss!=null)document.getElementById('tr-loss').textContent=m.loss.toFixed(4);
+  if(m.policy_loss!=null)document.getElementById('tr-ploss').textContent=m.policy_loss.toFixed(4);
+  if(m.value_loss!=null)document.getElementById('tr-vloss').textContent=m.value_loss.toFixed(4);
+  if(m.entropy!=null)document.getElementById('tr-entropy').textContent=m.entropy.toFixed(4);
+  if(m.game!=null)document.getElementById('tr-games').textContent=m.game;
+  if(m.eta_seconds!=null){
+    const s=m.eta_seconds;
+    const h=Math.floor(s/3600),min=Math.floor((s%3600)/60),sec=Math.floor(s%60);
+    document.getElementById('tr-eta').textContent=h>0?`${h}h${min}m`:`${min}m${sec}s`;
+  }
+  if(m.loss!=null){
+    metricsHistory.push(m);
+    if(metricsHistory.length>200)metricsHistory=metricsHistory.slice(-200);
+    updateChart();
+  }
 }
-
 function worldToScreen(wx,wy){
   return {x:AX+wx*TILE,y:AY+(32-wy)*TILE};
 }
 
 function drawArena(){
-  // Grass
-  ctx.fillStyle='#2a6a2a';
-  ctx.fillRect(AX,AY,720,640);
-
-  // Grid lines
-  ctx.strokeStyle='rgba(0,0,0,.1)';
-  ctx.lineWidth=0.5;
-  for(let i=0;i<=18;i++){
-    ctx.beginPath();
-    ctx.moveTo(AX+i*TILE,AY);
-    ctx.lineTo(AX+i*TILE,AY+640);
-    ctx.stroke();
-  }
-  for(let i=0;i<=32;i++){
-    ctx.beginPath();
-    ctx.moveTo(AX,AY+i*TILE);
-    ctx.lineTo(AX+720,AY+i*TILE);
-    ctx.stroke();
-  }
-
-  // River
+  ctx.fillStyle='#1e5a1e';ctx.fillRect(AX,AY,720,640);
+  ctx.strokeStyle='rgba(0,0,0,.08)';ctx.lineWidth=0.5;
+  for(let i=0;i<=18;i++){ctx.beginPath();ctx.moveTo(AX+i*TILE,AY);ctx.lineTo(AX+i*TILE,AY+640);ctx.stroke()}
+  for(let i=0;i<=32;i++){ctx.beginPath();ctx.moveTo(AX,AY+i*TILE);ctx.lineTo(AX+720,AY+i*TILE);ctx.stroke()}
   const ry=AY+15*TILE;
-  ctx.fillStyle='#285878';
-  ctx.fillRect(AX,ry,720,2*TILE+4);
-  ctx.fillStyle='#1a4060';
-  ctx.fillRect(AX,ry,720,2*TILE+4);
-
-  // Bridges
-  ctx.fillStyle='#6a5040';
+  ctx.fillStyle='#1e4a68';ctx.fillRect(AX,ry,720,2*TILE+4);
   for(const bx of[2,3,4,13,14,15]){
-    ctx.fillRect(AX+bx*TILE,ry,TILE,2*TILE);
-    ctx.strokeStyle='#8a7060';
-    ctx.strokeRect(AX+bx*TILE,ry,TILE,2*TILE);
+    ctx.fillStyle='#6a5040';ctx.fillRect(AX+bx*TILE,ry,TILE,2*TILE);
+    ctx.strokeStyle='#8a7060';ctx.strokeRect(AX+bx*TILE,ry,TILE,2*TILE);
   }
 }
 
 function drawTowers(){
   for(const t of TOWER_POSITIONS){
     const sx=AX+t.x*TILE, sy=AY+(32-t.y)*TILE;
-    const r=t.type==='king'?36:20;
-    const col=t.owner===0?'3355aa':'aa3333';
-
-    // Shadow
-    ctx.beginPath();
-    ctx.arc(sx-2,sy+2,r+2,0,Math.PI*2);
-    ctx.fillStyle='rgba(0,0,0,.3)';
-    ctx.fill();
-
-    // Base
-    const grad=ctx.createRadialGradient(sx-5,sy-5,0,sx,sy,r);
+    const r=t.type==='king'?32:18;
+    const col=t.owner===0?'#3355aa':'#aa3333';
+    ctx.save();
+    ctx.shadowColor='rgba(0,0,0,.3)';ctx.shadowBlur=4;ctx.shadowOffsetX=2;ctx.shadowOffsetY=2;
+    const grad=ctx.createRadialGradient(sx-4,sy-4,0,sx,sy,r);
     grad.addColorStop(0,t.owner===0?'#5577dd':'#dd5555');
-    grad.addColorStop(1,t.owner===0?'#1a3366':'#661a1a');
-    ctx.beginPath();
-    ctx.arc(sx,sy,r,0,Math.PI*2);
-    ctx.fillStyle=grad;
-    ctx.fill();
-    ctx.strokeStyle='#fff';
-    ctx.lineWidth=1.5;
-    ctx.stroke();
-
-    // Crown/star
+    grad.addColorStop(1,t.owner===0?'#223388':'#882222');
+    ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);ctx.fillStyle=grad;ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1.5;ctx.stroke();
     if(t.type==='king'){
-      ctx.fillStyle='#ffd700';
-      ctx.font='18px serif';
-      ctx.textAlign='center';
-      ctx.textBaseline='middle';
+      ctx.fillStyle='#ffd700';ctx.font='16px serif';ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText('♛',sx,sy+1);
     }
   }
@@ -267,54 +269,39 @@ function drawEntities(state){
   for(const e of state.entities){
     const sx=AX+e.x*TILE, sy=AY+(32-e.y)*TILE;
     const team=e.player_id===0?'#4488ff':'#ff5555';
-    const r=e.is_building?Math.max(10,e.radius||10):Math.max(6,e.radius||6);
+    const r=e.is_building?Math.max(10,e.radius||10):Math.max(8,e.radius||8);
+    const img=!e.is_building?getCardImage(e.name):null;
+    ctx.save();
+    ctx.shadowColor='rgba(0,0,0,.25)';ctx.shadowBlur=3;ctx.shadowOffsetX=1;ctx.shadowOffsetY=1;
 
-    // Shadow
-    ctx.beginPath();
-    ctx.arc(sx-1,sy+1,r+1,0,Math.PI*2);
-    ctx.fillStyle='rgba(0,0,0,.2)';
-    ctx.fill();
-
-    if(e.is_building){
-      ctx.fillStyle=team+'88';
-      ctx.fillRect(sx-r,sy-r,r*2,r*2);
-      ctx.strokeStyle='#fff';
-      ctx.lineWidth=1;
-      ctx.strokeRect(sx-r,sy-r,r*2,r*2);
-    }else if(e.is_air){
+    if(img&&img.complete&&img.naturalWidth>0){
+      const s=r*2.5;
+      ctx.drawImage(img,sx-s/2,sy-s/2,s,s);
+      ctx.strokeStyle=team+'88';ctx.lineWidth=1.5;ctx.strokeRect(sx-s/2,sy-s/2,s,s);
+    } else if(e.is_building){
+      ctx.fillStyle=team+'88';ctx.fillRect(sx-r,sy-r,r*2,r*2);
+      ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.strokeRect(sx-r,sy-r,r*2,r*2);
+    } else if(e.is_air){
       ctx.beginPath();
-      ctx.moveTo(sx+r*0.7,sy-r*0.7);
-      ctx.lineTo(sx+r*0.7,sy+r*0.7);
-      ctx.lineTo(sx-r*0.7,sy+r*0.7);
-      ctx.closePath();
-      ctx.fillStyle=team+'cc';
-      ctx.fill();
-    }else{
-      ctx.beginPath();
-      ctx.arc(sx,sy,r,0,Math.PI*2);
-      ctx.fillStyle=team+'cc';
-      ctx.fill();
-      ctx.strokeStyle='#fff';
-      ctx.lineWidth=1;
-      ctx.stroke();
+      ctx.moveTo(sx+r*0.7,sy-r*0.7);ctx.lineTo(sx+r*0.7,sy+r*0.7);
+      ctx.lineTo(sx-r*0.7,sy+r*0.7);ctx.closePath();
+      ctx.fillStyle=team+'cc';ctx.fill();
+    } else {
+      ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);
+      ctx.fillStyle=team+'cc';ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1;ctx.stroke();
     }
+    ctx.restore();
 
-    // HP bar
     if(e.hp_ratio>0){
       const bw=r*2+4;
-      ctx.fillStyle='#400';
-      ctx.fillRect(sx-bw/2,sy-r-6,bw,3);
+      ctx.fillStyle='#400';ctx.fillRect(sx-bw/2,sy-r-6,bw,3);
       const hpCol=e.hp_ratio>0.6?'#5c5':e.hp_ratio>0.3?'#cc5':'#c55';
-      ctx.fillStyle=hpCol;
-      ctx.fillRect(sx-bw/2,sy-r-6,bw*Math.max(0,e.hp_ratio),3);
+      ctx.fillStyle=hpCol;ctx.fillRect(sx-bw/2,sy-r-6,bw*Math.max(0,e.hp_ratio),3);
     }
-
-    // Name label
     if(e.name){
-      ctx.fillStyle='#fff';
-      ctx.font='10px sans-serif';
-      ctx.textAlign='center';
-      ctx.textBaseline='top';
+      ctx.fillStyle='rgba(255,255,255,.8)';ctx.font='9px sans-serif';
+      ctx.textAlign='center';ctx.textBaseline='top';
       ctx.fillText(e.name.substring(0,6),sx,sy+r+3);
     }
   }
@@ -324,10 +311,8 @@ function drawProjectiles(state){
   if(!state||!state.projectiles)return;
   for(const p of state.projectiles){
     const sx=AX+p.x*TILE, sy=AY+(32-p.y)*TILE;
-    ctx.beginPath();
-    ctx.arc(sx,sy,3,0,Math.PI*2);
-    ctx.fillStyle='#ffd700';
-    ctx.fill();
+    ctx.beginPath();ctx.arc(sx,sy,3,0,Math.PI*2);
+    ctx.fillStyle='#ffd700';ctx.fill();
   }
 }
 
@@ -335,80 +320,72 @@ function handleGameState(state){
   gameState=state;
   if(!state)return;
   gameTime=state.time||0;
-
-  // Towers
-  if(state.towers){
-    for(const t of state.towers){
-      const el=document.getElementById(t.type+'-p'+t.player_id);
-      if(el)el.style.width=(t.hp_ratio*100)+'%';
-    }
-  }
-
-  // Elixir
-  if(state.players){
-    for(let i=0;i<2;i++){
-      const el=document.getElementById('elixir-p'+i);
-      if(el&&state.players[i])el.style.width=(state.players[i].elixir/10*100)+'%';
-    }
-  }
-
-  // Crowns
+  if(state.towers){for(const t of state.towers){
+    const el=document.getElementById(t.type+'-p'+t.player_id);
+    if(el)el.style.width=(t.hp_ratio*100)+'%';
+  }}
+  if(state.players){for(let i=0;i<2;i++){
+    const el=document.getElementById('elixir-p'+i);
+    if(el&&state.players[i])el.style.width=(state.players[i].elixir/10*100)+'%';
+  }}
   if(state.players){
     document.getElementById('crowns-p0').textContent=(state.players[0]?.crowns||0)+'/3';
     document.getElementById('crowns-p1').textContent=(state.players[1]?.crowns||0)+'/3';
   }
-
-  // Timer
   const t=Math.floor(state.time||0);
-  const min=Math.floor(t/60);
-  const sec=t%60;
+  const min=Math.floor(t/60),sec=t%60;
   document.getElementById('game-timer').textContent=min+':'+sec.toString().padStart(2,'0');
-
-  // Hands
-  if(state.players){
-    for(let i=0;i<2;i++){
-      const hand=document.getElementById('hand-p'+i);
-      if(!hand||!state.players[i])continue;
-      hand.innerHTML='';
-      for(const c of(state.players[i].hand||[]).slice(0,4)){
-        const card=document.createElement('div');
-        card.className='hand-card';
-        card.innerHTML=`<span class="cost">${c.cost||'?'}</span><span class="name">${CARD_NAMES[c.name]||c.name||'?'}</span>`;
-        hand.appendChild(card);
-      }
+  if(state.players){for(let i=0;i<2;i++){
+    const hand=document.getElementById('hand-p'+i);
+    if(!hand||!state.players[i])continue;
+    hand.innerHTML='';
+    for(const c of(state.players[i].hand||[]).slice(0,4)){
+      const card=document.createElement('div');
+      card.className='hand-card'+(c.affordable===false?' disabled':'');
+      const fn=cardMap?.[c.name];
+      const imgHTML=fn?`<img src="/static/assets/cards-150/${fn}" alt="${c.name}" loading="lazy">`:'';
+      card.innerHTML=`<span class="cost">${c.cost||'?'}</span>${imgHTML}<span class="name">${c.name.substring(0,8)}</span>`;
+      hand.appendChild(card);
     }
-  }
-
-  // Render canvas
+  }}
   renderGame(state);
 }
 
 function renderGame(state){
-  ctx.clearRect(0,0,W,H);
-  drawArena();
-  drawTowers();
-
-  if(state){
-    // Draw projectiles first
-    drawProjectiles(state);
-    // Then entities on top
-    drawEntities(state);
-
-    // Spell effects
-    if(state.effects){
-      for(const ef of state.effects){
-        const sx=AX+ef.x*TILE, sy=AY+(32-ef.y)*TILE;
-        ctx.beginPath();
-        ctx.arc(sx,sy,ef.radius||20,0,Math.PI*2);
-        ctx.fillStyle=ef.color||'rgba(255,100,100,.15)';
-        ctx.fill();
-        ctx.strokeStyle='rgba(255,200,200,.3)';
-        ctx.stroke();
-      }
-    }
+  ctx.clearRect(0,0,W,H);drawArena();drawTowers();
+  if(state){drawProjectiles(state);drawEntities(state);
+    if(state.effects){for(const ef of state.effects){
+      const sx=AX+ef.x*TILE, sy=AY+(32-ef.y)*TILE;
+      ctx.beginPath();ctx.arc(sx,sy,ef.radius||20,0,Math.PI*2);
+      ctx.fillStyle=ef.color||'rgba(255,100,100,.15)';ctx.fill();
+      ctx.strokeStyle='rgba(255,200,200,.3)';ctx.stroke();
+    }}
   }
+}
 
-  gameTime+=0.033*speed;
+function updateChart(){
+  const c=document.getElementById('loss-chart');
+  if(!c)return;
+  const rect=c.parentElement.getBoundingClientRect();
+  c.width=rect.width||280;c.height=100;
+  const cx=c.getContext('2d');
+  cx.clearRect(0,0,c.width,c.height);
+  if(metricsHistory.length<2)return;
+  const vals=metricsHistory.map(m=>m.loss);
+  const max=Math.max(...vals)*1.1,min=Math.min(...vals)*0.9;
+  const range=max-min||1;
+  const pad=5;
+  const w=c.width-pad*2,h=c.height-pad*2;
+  cx.strokeStyle='#44aaff';cx.lineWidth=1.5;cx.beginPath();
+  for(let i=0;i<vals.length;i++){
+    const x=pad+(i/(vals.length-1))*w;
+    const y=pad+h-(1-(vals[i]-min)/range)*h;
+    i===0?cx.moveTo(x,y):cx.lineTo(x,y);
+  }
+  cx.stroke();
+  cx.fillStyle='#666';cx.font='9px sans-serif';
+  cx.fillText('loss',pad+2,pad+8);
+  cx.fillText(vals[vals.length-1].toFixed(4),c.width-50,pad+8);
 }
 
 function playGame(){
@@ -416,11 +393,8 @@ function playGame(){
   document.getElementById('btn-play').disabled=true;
   document.getElementById('btn-stop').disabled=false;
   updateStatus('Playing...');
-
-  fetch('/api/play',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speed:speed})})
-    .then(r=>r.json()).catch(()=>{});
+  fetch('/api/play',{method:'POST'}).catch(()=>{});
 }
-
 function stopGame(){
   playing=false;
   document.getElementById('btn-play').disabled=false;
@@ -429,31 +403,33 @@ function stopGame(){
   updateStatus('Stopped');
 }
 
-// Speed buttons
 document.querySelectorAll('.speed-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('.speed-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     speed=parseInt(btn.dataset.speed);
-    if(playing) fetch('/api/speed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speed:speed})}).catch(()=>{});
+    if(playing)fetch('/api/speed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({speed:speed})}).catch(()=>{});
+  });
+});
+
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
   });
 });
 
 document.getElementById('btn-play').addEventListener('click',playGame);
 document.getElementById('btn-stop').addEventListener('click',stopGame);
 
-// Animation loop
 function anim(t){
-  if(!playing){animId=requestAnimationFrame(anim);return}
-  if(gameState)renderGame(gameState);
   animId=requestAnimationFrame(anim);
 }
 anim();
 
-document.addEventListener('DOMContentLoaded',()=>{
-  drawArena();
-  drawTowers();
-});
+document.addEventListener('DOMContentLoaded',()=>{drawArena();drawTowers()});
 </script>
 </body>
 </html>
