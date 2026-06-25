@@ -66,8 +66,8 @@ def cmd_eval():
     from ai.train import evaluate_vs_baseline
     from ai.network import Trainer
     import torch
-    device = 'mps' if torch.backends.mps.is_available() else 'cpu'
-    trainer = Trainer(device=device)
+    _dev = 'cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu')
+    trainer = Trainer(device=_dev)
     ckpt = os.path.join(CHECKPOINT_DIR, 'latest.pt')
     if os.path.exists(ckpt):
         trainer.load(ckpt)
@@ -79,8 +79,8 @@ def cmd_evolve():
     from ai.royaleapi import DeckOptimizer
     from ai.network import Trainer
     import torch
-    device = 'mps' if torch.backends.mps.is_available() else 'cpu'
-    trainer = Trainer(device=device)
+    _dev = 'cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu')
+    trainer = Trainer(device=_dev)
     ckpt = os.path.join(CHECKPOINT_DIR, 'latest.pt')
     if os.path.exists(ckpt):
         trainer.load(ckpt)

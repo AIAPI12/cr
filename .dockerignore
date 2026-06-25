@@ -1,0 +1,11 @@
+.git
+__pycache__
+*.pyc
+*.pt
+checkpoints/
+node_modules/
+*.png
+*.jpg
+*.wav
+*.mp3
+reports/

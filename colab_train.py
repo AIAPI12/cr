@@ -11,7 +11,13 @@ Runs raw policy (no MCTS) for max throughput.
 Periodically evaluates with MCTS for accurate win-rate measurement.
 """
 import sys, os, time, json, random, math, argparse, shutil
-from pathlib import Path
+
+_PROJ = os.path.abspath(os.path.dirname(__file__))
+if _PROJ not in sys.path:
+    sys.path.insert(0, _PROJ)
+_SRC = os.path.join(_PROJ, 'src')
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
 
 try:
     import torch
@@ -19,9 +25,7 @@ except ImportError:
     os.system('pip install torch numpy -q')
     import torch
 
-PROJ = os.path.dirname(os.path.abspath(__file__))
-os.chdir(PROJ)
-CHECKPOINT_DIR = os.path.join(PROJ, 'checkpoints')
+CHECKPOINT_DIR = os.path.join(_PROJ, 'checkpoints')
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 # Detect Colab environment
@@ -41,7 +45,7 @@ if IN_COLAB:
 else:
     print('[Colab] Not in Colab, using local checkpoints')
 
-sys.path.insert(0, os.path.join(PROJ, 'src'))
+# Path already set up above
 
 from ai.env import CRGame, SelfPlaySystem
 from ai.network import Trainer
@@ -90,6 +94,8 @@ def main():
                        help='Resume from latest checkpoint')
     parser.add_argument('--no-turbo', action='store_false', dest='turbo',
                        help='Disable turbo (1 train step per game instead of 3)')
+    parser.add_argument('--step-n', type=int, default=150,
+                       help='Game steps per decision (default: 150, lower = faster but less accurate)')
     args = parser.parse_args()
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -107,13 +113,11 @@ def main():
             'pull'
         )
 
-    # Estimate: ~3 games/sec on T4, ~0.5 games/sec on CPU
-    if device == 'cuda':
-        est_gps = 3.0
-        est_label = 'T4 GPU'
-    else:
-        est_gps = 0.5
-        est_label = 'CPU'
+    # More accurate estimate based on step_n
+    base_speed = 3.0 if device == 'cuda' else 0.5
+    speed_factor = 150.0 / args.step_n  # step_n=75 -> 2x faster
+    est_gps = base_speed * speed_factor
+    est_label = 'T4 GPU' if device == 'cuda' else 'CPU'
     est_seconds = args.games / est_gps
     print(f'[Colab] Est. throughput: ~{est_gps:.1f} games/s ({est_label})')
     print(f'[Colab] Est. total time: {format_time(est_seconds)} ({format_time(est_seconds/3600)}h wall)')
@@ -135,6 +139,7 @@ def main():
         use_mcts=False,  # Raw policy for speed, MCTS for eval only
         mcts_sims=args.mcts_sims,
         eval_every=args.eval,
+        step_n=args.step_n,
     )
     elapsed = time.time() - start_wall
     actual_gps = args.games / elapsed if elapsed > 0 else 0
@@ -148,7 +153,7 @@ def main():
 
     # Final MCTS evaluation
     print(f'\n[Colab] === Final MCTS-{args.mcts_sims} evaluation vs random ===')
-    wr = evaluate_vs_baseline(trainer, num_games=max(20, args.eval // 10))
+    wr = evaluate_vs_baseline(trainer, num_games=max(20, args.eval // 10), step_n=args.step_n)
     print(f'[Colab] === Final win rate: {wr:.2%} ===')
 
     print(f'\n[Colab] === DONE ===')

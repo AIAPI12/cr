@@ -1,6 +1,7 @@
 import sys, os, math, random, time, json
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+_PROJ = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if _PROJ not in sys.path:
+    sys.path.insert(0, _PROJ)
 
 import pygame
 
@@ -37,6 +38,7 @@ BRIDGE = (100,70,40)
 HP_GREEN = (100,220,50)
 HP_YELLOW = (240,200,30)
 HP_RED = (240,50,50)
+YELLOW = (255,255,100)
 ELIXIR_PURPLE = (180,60,220)
 ELIXIR_GLOW = (220,150,255)
 COMMON = (160,160,160)
@@ -58,7 +60,12 @@ class CRGUI:
         self.massive = pygame.font.Font(None, 48)
         self.clock = pygame.time.Clock()
 
-        device = 'mps' if torch.backends.mps.is_available() else 'cpu'
+        if torch.cuda.is_available():
+            device = 'cuda'
+        elif torch.backends.mps.is_available():
+            device = 'mps'
+        else:
+            device = 'cpu'
         self.trainer = Trainer(device=device, res_blocks=5, filters=48, dropout=0.0)
         ckpt = os.path.join(os.path.dirname(__file__), '..', 'checkpoints', 'latest.pt')
         if os.path.exists(ckpt):

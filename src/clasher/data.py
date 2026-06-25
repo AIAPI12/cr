@@ -1,6 +1,5 @@
 from typing import Dict, Any, Optional, List
-import json
-import copy
+import json, copy, os
 
 from .card_types import CardDefinition, CardStatsCompat, TroopStats, BuildingStats, SpellStats
 from .card_aliases import alias_card_map, resolve_card_name
@@ -44,9 +43,27 @@ for hname, base in zip(hero_names, hero_base):
                          'base_card': base, 'is_hero': True}
 
 
+_DEFAULT_DATA_FILE = None
+
+def _find_gamedata() -> str:
+    global _DEFAULT_DATA_FILE
+    if _DEFAULT_DATA_FILE:
+        return _DEFAULT_DATA_FILE
+    candidates = [
+        "gamedata.json",
+    ]
+    proj = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    candidates.append(os.path.join(proj, "gamedata.json"))
+    for c in candidates:
+        if os.path.exists(c):
+            _DEFAULT_DATA_FILE = c
+            return c
+    return "gamedata.json"
+
+
 class CardDataLoader:
-    def __init__(self, data_file: str = "gamedata.json"):
-        self.data_file = data_file
+    def __init__(self, data_file: str = None):
+        self.data_file = data_file or _find_gamedata()
         self._cards: Dict[str, CardStatsCompat] = {}
         self._card_definitions: Dict[str, CardDefinition] = {}
 

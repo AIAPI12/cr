@@ -1,10 +1,10 @@
-import sys, os, time, json, random, math, threading
-from pathlib import Path
+import sys, os, time, json, random, math
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from ai.env import CRGame, SelfPlaySystem
 from ai.network import Trainer, CRNetwork
 import torch
+import torch.nn.functional as F
 
 CHECKPOINT_DIR = os.path.join(os.path.dirname(__file__), '..', 'checkpoints')
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
@@ -21,11 +21,15 @@ def format_time(seconds):
 
 def run_selfplay_loop(num_games=100, batch_size=64, save_every=25, turbo=True,
                       lr=3e-4, res_blocks=5, filters=48, dropout=0.0, compile_model=False,
-                      device='cpu', use_mcts=False, mcts_sims=50, eval_every=0):
-    print(f'[Train] Device: {device}  Turbo: {turbo}  MCTS: {use_mcts} sims={mcts_sims}')
-    print(f'[Train] lr={lr} blocks={res_blocks} filters={filters} dropout={dropout} compile={compile_model}')
+                      device='cpu', use_mcts=False, mcts_sims=50, eval_every=0, step_n=150,
+                      ppo_epochs=3, mini_batch_size=64, use_amp=False):
+    use_amp = use_amp and device != 'cpu'
+    print(f'[Train] Device: {device}  AMP: {use_amp}  Turbo: {turbo}  PPO epoch: {ppo_epochs}')
+    print(f'[Train] lr={lr} blocks={res_blocks} filters={filters} dropout={dropout} step_n={step_n}')
 
-    trainer = Trainer(lr=lr, device=device, res_blocks=res_blocks, filters=filters, dropout=dropout, compile_model=compile_model)
+    trainer = Trainer(lr=lr, device=device, res_blocks=res_blocks,
+                      filters=filters, dropout=dropout, compile_model=compile_model,
+                      use_amp=use_amp)
     checkpoint_path = os.path.join(CHECKPOINT_DIR, 'latest.pt')
     if os.path.exists(checkpoint_path):
         trainer.load(checkpoint_path)
@@ -34,26 +38,34 @@ def run_selfplay_loop(num_games=100, batch_size=64, save_every=25, turbo=True,
     sp = SelfPlaySystem(network=trainer.network)
     start = time.time()
     losses = []
-    checkpoint_drive_path = os.path.join(os.path.dirname(CHECKPOINT_DIR), '..', 'colab_drive_sync', 'latest.pt')
+
+    # Collect full episode trajectories for PPO
+    trajectory_buffer = []
+    train_every = max(1, 256 // max(batch_size, 1))
 
     for game_idx in range(num_games):
         temp = 1.0 if game_idx < min(500, num_games // 20) else 0.5
 
         if use_mcts:
-            sp.play_game_mcts(temperature=temp, record=True, mcts_sims=mcts_sims)
+            result = sp.play_game_mcts(temperature=temp, record=True, mcts_sims=mcts_sims, step_n=step_n)
         else:
-            sp.play_game(temperature=temp, record=True)
+            result = sp.play_game_ppo(temperature=temp, step_n=step_n)
+            traj_p0 = result.get('traj_p0', [])
+            traj_p1 = result.get('traj_p1', [])
+            if traj_p0 and traj_p1:
+                trajectory_buffer.append(traj_p0)
+                trajectory_buffer.append(traj_p1)
 
-        # Training steps
-        if len(sp.replay_buffer) >= batch_size:
-            for _ in range(3 if turbo else 1):
-                batch = random.sample(sp.replay_buffer, batch_size)
-                states = [t['state'] for t in batch]
-                actions = [t['action'] for t in batch]
-                rewards = [t['reward'] for t in batch]
-                policy_targets = [t.get('policy') for t in batch] if use_mcts and 'policy' in batch[0] else None
-                metrics = trainer.train_step(states, actions, rewards, policy_targets=policy_targets)
+        # Train with PPO periodically
+        if len(trajectory_buffer) >= train_every and len(trajectory_buffer) > 0:
+            metrics = trainer.train_ppo(
+                trajectory_buffer,
+                ppo_epochs=ppo_epochs,
+                mini_batch_size=mini_batch_size,
+            )
+            if metrics['loss'] > 0:
                 losses.append(metrics['loss'])
+            trajectory_buffer.clear()
 
         # Save checkpoint
         if (game_idx + 1) % save_every == 0:
@@ -64,7 +76,6 @@ def run_selfplay_loop(num_games=100, batch_size=64, save_every=25, turbo=True,
             wr = evaluate_vs_baseline(trainer, num_games=min(50, max(10, eval_every // 10)))
             trainer.save(checkpoint_path)
 
-        # ETA every 50 games (but not every line during fast runs)
         elapsed = time.time() - start
         gps = (game_idx + 1) / max(elapsed, 0.01)
         avg_loss = sum(losses[-50:]) / max(len(losses[-50:]), 1) if losses else 0
@@ -73,7 +84,7 @@ def run_selfplay_loop(num_games=100, batch_size=64, save_every=25, turbo=True,
 
         if (game_idx + 1) % max(1, min(50, num_games // 100)) == 0 or game_idx == num_games - 1:
             print(f'[{game_idx+1:6d}/{num_games}] {pct:5.1f}% L={avg_loss:.3f} '
-                  f'B={len(sp.replay_buffer):5d} {gps:.1f}g/s '
+                  f'T={len(trajectory_buffer):3d} {gps:.1f}g/s '
                   f'ETA={format_time(remaining)} Tot={format_time(elapsed)}')
 
     trainer.save(checkpoint_path)
@@ -82,7 +93,7 @@ def run_selfplay_loop(num_games=100, batch_size=64, save_every=25, turbo=True,
     return trainer
 
 
-def evaluate_vs_baseline(trainer, num_games=20):
+def evaluate_vs_baseline(trainer, num_games=20, step_n=150):
     sp = SelfPlaySystem(network=trainer.network)
     wins = 0
     eval_start = time.time()
@@ -101,7 +112,7 @@ def evaluate_vs_baseline(trainer, num_games=20):
                     state_t = torch.FloatTensor(state).unsqueeze(0).to(trainer.device)
                     with torch.no_grad():
                         policy_logits, _ = trainer.network(state_t)
-                    policy = torch.exp(policy_logits).squeeze(0).cpu().numpy()
+                    policy = F.softmax(policy_logits, dim=1).squeeze(0).cpu().numpy()
                     valid_indices = []
                     for a in valid:
                         ci, x, y = a
@@ -123,7 +134,7 @@ def evaluate_vs_baseline(trainer, num_games=20):
                 else:
                     actions[pid] = random.choice(valid) if valid else (-1, 0, 0)
             game.step(actions)
-            game.step_n(150)
+            game.step_n(step_n)
         if game.winner == 0:
             wins += 1
     wr = wins / num_games
@@ -133,9 +144,14 @@ def evaluate_vs_baseline(trainer, num_games=20):
 
 
 if __name__ == '__main__':
-    import sys
     if '--eval' in sys.argv:
-        trainer = Trainer(device='mps' if torch.backends.mps.is_available() else 'cpu')
+        if torch.cuda.is_available():
+            _dev = 'cuda'
+        elif torch.backends.mps.is_available():
+            _dev = 'mps'
+        else:
+            _dev = 'cpu'
+        trainer = Trainer(device=_dev)
         ckpt = os.path.join(CHECKPOINT_DIR, 'latest.pt')
         if os.path.exists(ckpt):
             trainer.load(ckpt)

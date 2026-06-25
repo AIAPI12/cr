@@ -1,24 +1,20 @@
 import sys, os, random, math, copy, json, time
-import torch; torch.set_num_threads(1)
-_PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-os.chdir(_PROJ)
-sys.path.insert(0, os.path.join(_PROJ, 'src'))
 from typing import Dict, List, Tuple, Optional
 from collections import deque
+
+import torch; torch.set_num_threads(1)
+
+_PROJ = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if _PROJ not in sys.path:
+    sys.path.insert(0, _PROJ)
+_SRC = os.path.join(_PROJ, 'src')
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
 
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 
 import logging
 logging.disable(logging.CRITICAL)
-
-import builtins
-_original_print = builtins.print
-def _quiet_print(*args, **kwargs):
-    if args and isinstance(args[0], str):
-        if any(s in args[0] for s in ['[Lifecycle]', '[Detect]', '[Attach]', '[Mechanic]', '[Warn]', '====', 'Warning']):
-            return
-    _original_print(*args, **kwargs)
-builtins.print = _quiet_print
 
 from clasher.battle import BattleState, pick_tower_troops, TOWER_TROOP_STATS
 from clasher.arena import Position
@@ -44,7 +40,7 @@ class CRGame:
         self.battle = BattleState(tower_troop=tt)
         self._setup_decks(deck0, deck1)
         self.tower_troop = tt
-        self._valid_cache = {}  # (pid, tower_state_hash) -> list of (x,y) tile centers
+        self._valid_cache = {}
 
     def _setup_decks(self, deck0: List[str], deck1: List[str]):
         if deck0: self._set_player_deck(0, deck0)
@@ -119,6 +115,10 @@ class CRGame:
         for y in range(h):
             for x in range(w):
                 t[11][y][x] = tr
+
+        if pid == 1:
+            for c in range(c):
+                t[c] = list(reversed(t[c]))
 
         return t
 
@@ -226,12 +226,12 @@ class SelfPlaySystem:
             out.append(random.choices(valid, weights=vp)[0])
         return out
 
-    def play_game_mcts(self, temperature=1.0, record=True, mcts_sims=50, c_puct=1.5):
+    def play_game_mcts(self, temperature=1.0, record=True, mcts_sims=50, c_puct=1.5, step_n=150):
         d0, d1 = self.get_random_deck(), self.get_random_deck()
         game = CRGame(d0, d1)
         traj = []
 
-        from mcts import mcts_search, encode_action, action_to_idx, ACTION_DIM
+        from ai.mcts import mcts_search, encode_action, action_to_idx, ACTION_DIM
         import numpy as np
 
         for step in range(6000):
@@ -259,7 +259,7 @@ class SelfPlaySystem:
                     })
 
             game.step({0: actions[0], 1: actions[1]})
-            game.step_n(150)
+            game.step_n(step_n)
 
         w = game.winner
         for t in traj:
@@ -277,10 +277,10 @@ class SelfPlaySystem:
 
         return {'winner': w, 'steps': step, 'decks': (d0, d1)}
 
-    def play_game(self, use_network=True, temperature=1.0, record=True):
+    def play_game(self, use_network=True, temperature=1.0, record=True, step_n=150):
         d0, d1 = self.get_random_deck(), self.get_random_deck()
         game = CRGame(d0, d1)
-        traj = []
+        traj_raw = []
 
         for step in range(6000):
             if game.game_over: break
@@ -291,34 +291,87 @@ class SelfPlaySystem:
                 v1 = game.get_valid_actions(1)
                 acts = self._batch_policy([s0, s1], [v0, v1], temperature)
                 if record:
-                    traj.append({'state': s0, 'pid': 0, 'action': acts[0], 'valid': v0})
-                    traj.append({'state': s1, 'pid': 1, 'action': acts[1], 'valid': v1})
+                    traj_raw.append({'state': s0, 'pid': 0, 'action': acts[0], 'valid': v0})
+                    traj_raw.append({'state': s1, 'pid': 1, 'action': acts[1], 'valid': v1})
             else:
                 acts = {}
                 for pid in range(2):
                     valid = game.get_valid_actions(pid)
                     acts[pid] = random.choice(valid) if valid else (-1, 0, 0)
                     if record:
-                        traj.append({'state': game.get_state_tensor(pid), 'pid': pid,
-                                     'action': acts[pid], 'valid': valid})
+                        traj_raw.append({'state': game.get_state_tensor(pid), 'pid': pid,
+                                         'action': acts[pid], 'valid': valid})
                 acts = [acts[0], acts[1]]
 
             game.step({0: acts[0], 1: acts[1]})
-            game.step_n(150)
+            game.step_n(step_n)
 
         w = game.winner
-        for t in traj:
+        for t in traj_raw:
             r = 0
             if w == t['pid']: r = 1
             elif w is not None: r = -1
             t['reward'] = r
 
         if record:
-            self.replay_buffer.extend(traj)
+            self.replay_buffer.extend(traj_raw)
             if len(self.replay_buffer) > self.max_buffer_size:
                 self.replay_buffer = self.replay_buffer[-self.max_buffer_size:]
 
-        return {'winner': w, 'steps': step, 'decks': (d0, d1)}
+        return {'winner': w, 'steps': step, 'decks': (d0, d1), 'trajectory': traj_raw}
+
+    def play_game_ppo(self, use_network=True, temperature=1.0, step_n=150):
+        """
+        Play one game and return trajectories suitable for PPO.
+        Returns (traj_p0, traj_p1) where each is a list of dicts with step-by-step data.
+        Only the terminal step has non-zero reward and done=True.
+        """
+        d0, d1 = self.get_random_deck(), self.get_random_deck()
+        game = CRGame(d0, d1)
+        traj_p0 = []
+        traj_p1 = []
+
+        for step in range(6000):
+            if game.game_over: break
+            game_over_now = game.game_over
+            if use_network and self.network:
+                s0 = game.get_state_tensor(0)
+                s1 = game.get_state_tensor(1)
+                v0 = game.get_valid_actions(0)
+                v1 = game.get_valid_actions(1)
+                acts = self._batch_policy([s0, s1], [v0, v1], temperature)
+                traj_p0.append({'state': s0, 'pid': 0, 'action': acts[0], 'valid': v0, 'reward': 0, 'done': False})
+                traj_p1.append({'state': s1, 'pid': 1, 'action': acts[1], 'valid': v1, 'reward': 0, 'done': False})
+            else:
+                acts = {}
+                for pid in range(2):
+                    valid = game.get_valid_actions(pid)
+                    acts[pid] = random.choice(valid) if valid else (-1, 0, 0)
+                s0 = game.get_state_tensor(0)
+                s1 = game.get_state_tensor(1)
+                v0 = game.get_valid_actions(0)
+                v1 = game.get_valid_actions(1)
+                traj_p0.append({'state': s0, 'pid': 0, 'action': acts[0], 'valid': v0, 'reward': 0, 'done': False})
+                traj_p1.append({'state': s1, 'pid': 1, 'action': acts[1], 'valid': v1, 'reward': 0, 'done': False})
+
+            game.step({0: acts[0], 1: acts[1]})
+            game.step_n(step_n)
+
+        w = game.winner
+        if traj_p0:
+            last_p0 = traj_p0[-1]
+            last_p1 = traj_p1[-1]
+            if w == 0:
+                last_p0['reward'] = 1
+                last_p1['reward'] = -1
+            elif w == 1:
+                last_p0['reward'] = -1
+                last_p1['reward'] = 1
+            last_p0['done'] = True
+            last_p1['done'] = True
+
+        return {'winner': w, 'steps': step, 'decks': (d0, d1),
+                'traj_p0': traj_p0, 'traj_p1': traj_p1}
 
     def sample_batch(self, n=256):
         batch = random.sample(self.replay_buffer, min(n, len(self.replay_buffer)))
