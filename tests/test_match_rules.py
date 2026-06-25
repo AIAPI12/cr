@@ -367,7 +367,7 @@ def test_lumberjack_death_drops_rage_buff():
 
     lumberjack = next(
         e for e in battle.entities.values()
-        if isinstance(e, Troop) and e.player_id == 0 and e.card_stats.name == "AxeMan"
+        if isinstance(e, Troop) and e.player_id == 0 and e.card_stats.name == "RageBarbarian"
     )
     ally_knight = next(
         e for e in battle.entities.values()

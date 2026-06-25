@@ -70,6 +70,7 @@ class BattleState:
         except Exception as e:
             print(f"[Warn] load_card_definitions failed: {e}")
         self._create_towers()
+        self._update_tower_hp()  # sync player HP from entities (scaled)
         self._starting_total_tower_hp = {
             0: self.players[0].king_tower_hp + self.players[0].left_tower_hp + self.players[0].right_tower_hp,
             1: self.players[1].king_tower_hp + self.players[1].left_tower_hp + self.players[1].right_tower_hp,
