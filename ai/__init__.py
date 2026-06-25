@@ -1,2 +1,3 @@
 from .env import CRGame, SelfPlaySystem
-from .network import CRNetwork, Trainer
+
+__all__ = ['CRGame', 'SelfPlaySystem']
