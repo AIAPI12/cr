@@ -2,7 +2,10 @@ import sys, os, random, math, copy, json, time
 from typing import Dict, List, Tuple, Optional
 from collections import deque
 
-import torch; torch.set_num_threads(1)
+try:
+    import torch; torch.set_num_threads(1)
+except ImportError:
+    torch = None
 
 _PROJ = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if _PROJ not in sys.path:

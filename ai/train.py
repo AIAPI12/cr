@@ -5,6 +5,7 @@ from ai.env import CRGame, SelfPlaySystem
 from ai.network import Trainer, CRNetwork
 import torch
 import torch.nn.functional as F
+torch.set_num_threads(4)
 
 CHECKPOINT_DIR = os.path.join(os.path.dirname(__file__), '..', 'checkpoints')
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
