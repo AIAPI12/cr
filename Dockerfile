@@ -9,4 +9,4 @@ COPY . .
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
-CMD uvicorn dashboard.server:app --host 0.0.0.0 --port ${PORT:-8000} --timeout-keep-alive 120
+CMD ["sh", "-c", "uvicorn dashboard.server:app --host 0.0.0.0 --port ${PORT:-8000} --timeout-keep-alive 120"]
